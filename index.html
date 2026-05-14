@@ -420,6 +420,7 @@
     flex: 1;
     overflow: hidden;
     position: relative;
+    cursor: grab;
   }
 
   #prompter-inner {
@@ -1239,10 +1240,67 @@ document.addEventListener('fullscreenchange', () => {
   }
 });
 
-// ── TOUCH: tap to play/pause in prompter mode ──
-document.getElementById('prompter-scroll').addEventListener('click', () => {
-  if (inPrompterMode) togglePlay();
-});
+// ── TOUCH: tap to play/pause, drag to scrub ──
+(function() {
+  const el = document.getElementById('prompter-scroll');
+  let touchStartY = 0;
+  let touchStartScrollPos = 0;
+  let touchMoved = false;
+  let isDragging = false;
+
+  // Mouse events (desktop)
+  el.addEventListener('mousedown', e => {
+    if (isPlaying) return;
+    isDragging = true;
+    touchMoved = false;
+    touchStartY = e.clientY;
+    touchStartScrollPos = scrollPos;
+    el.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const delta = touchStartY - e.clientY;
+    if (Math.abs(delta) > 5) touchMoved = true;
+    scrollPos = Math.max(0, touchStartScrollPos + delta);
+    applyScroll();
+    updateProgress();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      el.style.cursor = '';
+    }
+  });
+
+  // Touch events (mobile)
+  el.addEventListener('touchstart', e => {
+    touchStartY = e.touches[0].clientY;
+    touchStartScrollPos = scrollPos;
+    touchMoved = false;
+  }, { passive: true });
+
+  el.addEventListener('touchmove', e => {
+    const delta = touchStartY - e.touches[0].clientY;
+    if (Math.abs(delta) > 8) touchMoved = true;
+    if (!isPlaying && touchMoved) {
+      scrollPos = Math.max(0, touchStartScrollPos + delta);
+      applyScroll();
+      updateProgress();
+    }
+  }, { passive: true });
+
+  el.addEventListener('touchend', () => {
+    if (!touchMoved) togglePlay();
+  });
+
+  // Desktop click (only if not dragged)
+  el.addEventListener('click', e => {
+    if (!touchMoved && !isDragging) togglePlay();
+  });
+})();
 
 // ── KEYBOARD ──
 document.addEventListener('keydown', e => {
